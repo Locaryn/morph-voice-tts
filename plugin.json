@@ -2,8 +2,8 @@
   "$schema": "https://locaryn.dev/schema/plugin.json/v0.1",
   "apiVersion": "0.1",
   "name": "plugin-voice-tts",
-  "version": "1.0.0",
-  "description": "Voice synthesis & voice cloning extension (Kokoro-82M, Qwen3-TTS, Piper ONNX).",
+  "version": "1.1.0",
+  "description": "Synthèse vocale (TTS) naturelle et clonage vocal instantané (Kokoro-82M, Qwen3-TTS, Piper).",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Locaryn/plugin-voice-tts",
@@ -13,65 +13,62 @@
     "text-to-speech",
     "voice-cloning",
     "kokoro",
-    "qwen3-tts"
+    "qwen3-tts",
+    "piper"
   ],
   "permissions": {
-    "files_read": true,
-    "files_write": true,
-    "shell": false
+    "mcp": {
+      "reason": "Lancer le moteur de synthèse vocale local."
+    },
+    "files.read": {
+      "reason": "Lire les modèles de voix et fichiers audio de référence."
+    },
+    "files.write": {
+      "reason": "Sauvegarder les fichiers audio générés et profils de voix."
+    },
+    "network": {
+      "reason": "Télécharger les modèles vocaux depuis HuggingFace."
+    }
+  },
+  "components": {
+    "skills": [
+      "SKILL.md"
+    ],
+    "mcp": "mcp/mcp.json"
   },
   "capabilities": [
     "voice-tts",
     "voice-cloning"
   ],
   "ui_contributions": {
+    "slots": [
+      {
+        "id": "voice-tts-catalog",
+        "slot": "marketplace.catalogs",
+        "order": 14,
+        "type": "data",
+        "label": "Modèles de synthèse vocale",
+        "icon": "mic",
+        "entry": "dist/marketplace.json",
+        "hint": "Ajoute les modèles vocaux Kokoro et Piper au catalogue"
+      },
+      {
+        "id": "voice-tts-studio",
+        "slot": "studio.tabs",
+        "order": 14,
+        "label": "Synthèse vocale",
+        "icon": "mic",
+        "type": "custom-element",
+        "entry": "dist/ui.js",
+        "tag": "locaryn-voice-tts-panel",
+        "hint": "Lecture audio et clonage de voix"
+      }
+    ],
     "nav_items": [
       {
         "id": "studio",
         "label": "Studio de génération",
         "icon": "image"
-      }
-    ],
-    "studio_tabs": [
-      {
-        "id": "audio",
-        "label": "Synthèse vocale",
-        "icon": "mic"
-      }
-    ],
-    "composer_actions": [
-      {
-        "id": "read_aloud",
-        "label": "Lire à voix haute",
-        "icon": "sound",
-        "action": "tool",
-        "value": "generate_speech",
-        "hint": "Faire dire le texte du champ par la voix choisie"
-      }
-    ],
-    "settings_sections": [
-      {
-        "id": "voix",
-        "label": "Synthèse vocale",
-        "fields": [
-          {
-            "id": "model",
-            "type": "model",
-            "label": "Modèle de voix",
-            "hint": "Kokoro parle sans échantillon ; les autres demandent une voix de référence."
-          },
-          {
-            "id": "speed",
-            "type": "select",
-            "label": "Débit",
-            "options": [
-              "lent",
-              "normal",
-              "rapide"
-            ],
-            "default": "normal"
-          }
-        ]
       }
     ]
   }

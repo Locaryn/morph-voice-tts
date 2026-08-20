@@ -1,8 +1,8 @@
 ---
 name: voice-tts
-description: Convert text into realistic speech audio files or clone voices from sample recordings.
+description: Transformer du texte en voix parlée naturelle (TTS) et cloner des voix depuis un échantillon audio.
 ---
 
-# Voice & Speech Synthesis Skill
+# Compétence Synthèse Vocale
 
-Use `synthesize_speech` when the user asks to read text aloud, create voiceovers, or generate podcast/speech audio files.
+Utilisez `synthesize_speech` lorsque l'utilisateur souhaite écouter une réponse ou générer un enregistrement audio parlé.

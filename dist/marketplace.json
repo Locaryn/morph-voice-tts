@@ -1,0 +1,48 @@
+{
+  "schemaVersion": 1,
+  "refreshUrl": "https://raw.githubusercontent.com/Locaryn/plugin-voice-tts/main/dist/marketplace.json",
+  "owns": [
+    "kokoro",
+    "qwen3-tts",
+    "piper"
+  ],
+  "categories": [
+    {
+      "id": "voice-tts",
+      "label": "Synthèse vocale",
+      "icon": "mic",
+      "matches": [
+        "voice-tts"
+      ],
+      "requires": [
+        "voice-tts"
+      ]
+    }
+  ],
+  "models": [
+    {
+      "id": "kokoro-82m",
+      "name": "Kokoro 82M TTS",
+      "brand": "Hexgrad",
+      "description": "Voix ultra-naturelle et fluide en français, anglais et plusieurs langues.",
+      "license": "Apache-2.0",
+      "releaseDate": "2025-01-10",
+      "releaseYear": 2025,
+      "capabilities": [
+        "voice-tts"
+      ],
+      "variants": [
+        {
+          "size": "ONNX · 82M",
+          "params": 0.08,
+          "storageGb": 0.3,
+          "quants": [
+            "fp16"
+          ],
+          "tag": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v0_19.onnx",
+          "downloads": []
+        }
+      ]
+    }
+  ]
+}

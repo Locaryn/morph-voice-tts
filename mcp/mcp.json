@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "voice-tts": {
+      "command": "${LOCARYN_PLUGIN_ROOT}/bin/locaryn-voice-tts-mcp",
+      "args": [],
+      "env": {
+        "RUST_LOG": "warn"
+      },
+      "transport": "stdio",
+      "auto_start": true
+    }
+  }
+}
