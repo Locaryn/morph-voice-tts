@@ -1,13 +1,13 @@
 {
   "$schema": "https://locaryn.dev/schema/plugin.json/v0.1",
   "apiVersion": "0.1",
-  "name": "plugin-voice-tts",
+  "name": "extension-voice-tts",
   "version": "1.1.0",
   "description": "Synthèse vocale (TTS) naturelle et clonage vocal instantané (Kokoro-82M, Qwen3-TTS, Piper).",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
-  "homepage": "https://github.com/Locaryn/plugin-voice-tts",
-  "repository": "https://github.com/Locaryn/plugin-voice-tts",
+  "homepage": "https://github.com/Locaryn/extension-voice-tts",
+  "repository": "https://github.com/Locaryn/extension-voice-tts",
   "keywords": [
     "voice-tts",
     "text-to-speech",
