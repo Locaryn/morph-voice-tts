@@ -1,10 +1,13 @@
 //! Stdio MCP server shipped by morph-voice-tts.
-use locaryn_plugin_voice_tts::{list_voices, synthesize_speech, TtsRequest};
+use locaryn_plugin_voice_tts::{
+    has_own_voice, kokoro_voices_in_repo, list_usable_voices, list_voices, repo_path,
+    synthesize_speech, TtsRequest,
+};
 use serde_json::{json, Value};
 use std::io::Write;
 use tokio::io::{AsyncBufReadExt, BufReader};
 
-const VERSION: &str = "1.1.0";
+const VERSION: &str = env!("CARGO_PKG_VERSION");
 
 #[tokio::main]
 async fn main() {
@@ -65,18 +68,28 @@ fn tools_list() -> Value {
         "tools": [
             {
                 "name": "list_voices",
-                "description": "Liste les voix de synthèse et profils vocaux disponibles.",
+                "description": "Les modèles de synthèse installés. `usable` ne garde que ceux qui \
+                                savent parler sans enregistrement de référence : c'est la liste à \
+                                proposer. Les dépôts Kokoro donnent aussi leurs voix internes.",
                 "inputSchema": { "type": "object", "properties": {} }
             },
             {
                 "name": "synthesize_speech",
-                "description": "Génère un enregistrement vocal (WAV) à partir d'un texte fourni.",
+                "description": "Lit un texte à voix haute et écrit un WAV sur cette machine. Rend le \
+                                chemin du fichier, sa durée, le modèle et la voix retenus.",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "text": { "type": "string", "description": "Texte à lire à voix haute" },
-                        "voice": { "type": "string", "description": "Nom ou identifiant de la voix" },
-                        "speed": { "type": "number", "description": "Vitesse d'élocution (0.5 à 2.0, défaut: 1.0)" }
+                        "voice": {
+                            "type": "string",
+                            "description": "Modèle à employer, tel que rendu par `list_voices`. Omis : le premier modèle utilisable installé."
+                        },
+                        "speed": { "type": "number", "description": "Vitesse d'élocution, de 0.5 à 2.0 (défaut 1.0)" },
+                        "language": {
+                            "type": "string",
+                            "description": "Code ISO de la langue (fr, en, ja…). Omis : deviné d'après le texte."
+                        }
                     },
                     "required": ["text"]
                 }
@@ -87,7 +100,28 @@ fn tools_list() -> Value {
 
 async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
     match name {
-        "list_voices" => Ok(json!({ "voices": list_voices() })),
+        "list_voices" => {
+            // Le détail des voix internes évite un aller-retour : sans lui, le
+            // modèle ne peut ni nommer une voix ni savoir quelles langues le
+            // dépôt couvre réellement.
+            let details: Vec<Value> = list_voices()
+                .into_iter()
+                .map(|nom| {
+                    let voix = repo_path(&nom)
+                        .map(|p| kokoro_voices_in_repo(&p))
+                        .unwrap_or_default();
+                    json!({
+                        "name": nom,
+                        "usable": has_own_voice(&nom),
+                        "inner_voices": voix,
+                    })
+                })
+                .collect();
+            Ok(json!({
+                "models": details,
+                "usable": list_usable_voices(),
+            }))
+        }
         "synthesize_speech" => {
             let req: TtsRequest = serde_json::from_value(args)
                 .map_err(|e| format!("Paramètres TTS invalides: {e}"))?;
