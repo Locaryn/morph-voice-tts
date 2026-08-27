@@ -1,4 +1,4 @@
-//! Stdio MCP server shipped by plugin-voice-tts.
+//! Stdio MCP server shipped by morph-voice-tts.
 use locaryn_plugin_voice_tts::{list_voices, synthesize_speech, TtsRequest};
 use serde_json::{json, Value};
 use std::io::Write;
@@ -29,7 +29,7 @@ async fn handle_request(request: Value) -> Value {
         "initialize" => success(id, json!({
             "protocolVersion": "2025-06-18",
             "capabilities": { "tools": {} },
-            "serverInfo": { "name": "plugin-voice-tts", "version": VERSION }
+            "serverInfo": { "name": "morph-voice-tts", "version": VERSION }
         })),
         "tools/list" => success(id, tools_list()),
         "tools/call" => {
