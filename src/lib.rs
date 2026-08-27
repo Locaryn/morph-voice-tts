@@ -1,6 +1,6 @@
 //! Locaryn Voice & TTS Plugin
-use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TtsRequest {
@@ -11,8 +11,12 @@ pub struct TtsRequest {
     pub speed: f32,
     pub output_dir: Option<PathBuf>,
 }
-fn default_voice() -> String { "fr-siwis".into() }
-fn default_speed() -> f32 { 1.0 }
+fn default_voice() -> String {
+    "fr-siwis".into()
+}
+fn default_speed() -> f32 {
+    1.0
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TtsResult {
@@ -24,7 +28,9 @@ pub fn models_dir() -> PathBuf {
     if let Ok(dir) = std::env::var("LOCARYN_EXTENSION_MODELS_DIR") {
         PathBuf::from(dir)
     } else {
-        std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("models")
+        std::env::current_dir()
+            .unwrap_or_else(|_| PathBuf::from("."))
+            .join("models")
     }
 }
 
@@ -32,7 +38,10 @@ pub fn list_voices() -> Vec<String> {
     let dir = models_dir();
     let mut voices = Vec::new();
     if dir.exists() {
-        for entry in walkdir::WalkDir::new(&dir).into_iter().filter_map(|e| e.ok()) {
+        for entry in walkdir::WalkDir::new(&dir)
+            .into_iter()
+            .filter_map(|e| e.ok())
+        {
             let path = entry.path();
             if path.is_file() {
                 if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
@@ -59,7 +68,9 @@ pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
         if let Ok(media) = std::env::var("LOCARYN_EXTENSION_MEDIA_DIR") {
             PathBuf::from(media)
         } else {
-            std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")).join("output")
+            std::env::current_dir()
+                .unwrap_or_else(|_| PathBuf::from("."))
+                .join("output")
         }
     });
 
