@@ -63,34 +63,9 @@ pub fn list_voices() -> Vec<String> {
     voices
 }
 
-pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
-    let out_dir = req.output_dir.unwrap_or_else(|| {
-        if let Ok(media) = std::env::var("LOCARYN_EXTENSION_MEDIA_DIR") {
-            PathBuf::from(media)
-        } else {
-            std::env::current_dir()
-                .unwrap_or_else(|_| PathBuf::from("."))
-                .join("output")
-        }
-    });
-
-    std::fs::create_dir_all(&out_dir)
-        .map_err(|e| format!("Impossible de créer le dossier de sortie: {e}"))?;
-
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_millis();
-
-    let out_file = out_dir.join(format!("tts_{timestamp}.wav"));
-    if !out_file.exists() {
-        let _ = std::fs::write(&out_file, b"RIFF-WAVE-LOCARYN-SPEECH");
-    }
-
-    let approx_dur = ((req.text.len() as f32) / 15.0).max(1.0);
-
-    Ok(TtsResult {
-        audio_path: out_file,
-        duration_seconds: approx_dur,
-    })
+/// Non implemente. La signature est conservee pour que l'interface et le
+/// serveur MCP gardent leur forme, mais l'appel echoue franchement plutot
+/// que de fabriquer un resultat.
+pub async fn synthesize_speech(_req: TtsRequest) -> Result<TtsResult, String> {
+    Err("La synthese vocale n'est pas implementee : ce morph n'embarque aucun moteur TTS. Aucun fichier n'a ete produit.".into())
 }
