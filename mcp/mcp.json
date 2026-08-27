@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "voice-tts": {
-      "command": "${LOCARYN_PLUGIN_ROOT}/bin/locaryn-voice-tts-mcp",
+      "command": "${LOCARYN_MORPH_ROOT}/bin/locaryn-voice-tts-mcp",
       "args": [],
       "env": {
         "RUST_LOG": "warn"
