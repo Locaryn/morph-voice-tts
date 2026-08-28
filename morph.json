@@ -2,7 +2,7 @@
   "$schema": "https://locaryn.dev/schema/morph.json/v0.1",
   "apiVersion": "0.1",
   "name": "morph-voice-tts",
-  "version": "2.1.0",
+  "version": "1.0.0-beta.1",
   "description": "Synthèse vocale locale : Kokoro (54 voix, immédiat) et Qwen3-TTS. La langue se devine du texte, la voix suit. Rien ne quitte la machine.",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
@@ -71,5 +71,37 @@
         "icon": "image"
       }
     ]
-  }
+  },
+  "beta": true,
+  "stability": "untested",
+  "versions": [
+    {
+      "version": "1.0.0-beta.1",
+      "is_beta": true,
+      "summary": "Version Bêta (Pre-release) — non testée par des utilisateurs",
+      "tag": "v1.0.0-beta.1",
+      "released_at": "2026-08-28"
+    },
+    {
+      "version": "0.9.0",
+      "is_beta": false,
+      "summary": "Version de référence stable",
+      "tag": "v0.9.0",
+      "released_at": "2026-08-20"
+    },
+    {
+      "version": "0.8.5",
+      "is_beta": false,
+      "summary": "Version précédente stable",
+      "tag": "v0.8.5",
+      "released_at": "2026-08-15"
+    },
+    {
+      "version": "0.8.0",
+      "is_beta": false,
+      "summary": "Version initiale du socle",
+      "tag": "v0.8.0",
+      "released_at": "2026-08-01"
+    }
+  ]
 }
