@@ -5,9 +5,13 @@
 //! lent mais plus riche. Rien ne sort de la machine : le texte entre, un WAV
 //! sort, et les poids ne bougent pas.
 //!
-//! Le clonage vocal n'est volontairement pas ici. La variante « Base » de
-//! Qwen3-TTS ne sait que cloner : elle est refusée par son nom plutôt que de
-//! finir en trace d'exécution Python illisible.
+//! Le **clonage vocal** est ici aussi, depuis que les préréglages ont rejoint
+//! ce morph : cloner une voix, c'est encore de la synthèse, et c'est ce morph
+//! qui tient les moteurs. Qwen3-TTS sait le faire — la variante « Base » ne
+//! sait même faire que cela. Un enregistrement de référence et sa
+//! transcription suffisent ; [`presets`] les garde d'une phrase à l'autre.
+
+pub mod presets;
 
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
@@ -25,6 +29,27 @@ pub struct TtsRequest {
     #[serde(default)]
     pub language: Option<String>,
     pub output_dir: Option<PathBuf>,
+    /// Un préréglage vocal, par son identifiant : il apporte l'enregistrement
+    /// de référence, sa transcription et les réglages de diction. C'est la voie
+    /// normale du clonage — on enregistre une fois, on réutilise ensuite.
+    #[serde(default)]
+    pub preset: Option<String>,
+    /// Un enregistrement de référence donné directement, pour un clonage
+    /// unique sans passer par un préréglage.
+    #[serde(default)]
+    pub reference_audio: Option<PathBuf>,
+    /// Ce que dit l'enregistrement. Sans elle, le moteur retombe sur le mode
+    /// « empreinte seule », qui tient le timbre mais rend une diction plate.
+    #[serde(default)]
+    pub reference_text: Option<String>,
+}
+
+/// De quoi cloner : l'enregistrement, et ce qu'il dit.
+struct Reference {
+    audio: PathBuf,
+    /// Vide quand la transcription est inconnue — le moteur passe alors en
+    /// mode « empreinte seule ».
+    text: String,
 }
 
 fn default_speed() -> f32 {
@@ -362,18 +387,28 @@ async fn run_qwen3(
     out_file: &Path,
     speed: f32,
     language: &str,
+    reference: Option<&Reference>,
 ) -> Result<(), String> {
     let dirname = repo_dir
         .file_name()
         .and_then(|n| n.to_str())
         .unwrap_or_default()
         .to_ascii_lowercase();
-    if dirname.contains("base") {
+
+    // La variante « Base » ne sait que cloner : sans référence, elle n'a rien
+    // pour parler. Le refus ne porte donc plus sur le modèle mais sur ce qui
+    // manque — et il dit quoi faire.
+    if dirname.contains("base") && reference.is_none() {
         return Err(
-            "La variante « Base » de Qwen3-TTS exige un enregistrement de référence \
-             (clonage vocal), que ce morph ne fait pas. Prenez « CustomVoice », ou Kokoro."
+            "La variante « Base » de Qwen3-TTS ne sait que cloner : donnez un préréglage \
+             vocal, ou un enregistrement de référence. Pour parler sans référence, prenez \
+             « CustomVoice », ou Kokoro."
                 .into(),
         );
+    }
+
+    if let Some(r) = reference {
+        return run_qwen3_clone(python, repo_dir, text, out_file, speed, language, r).await;
     }
 
     let script = format!(
@@ -424,6 +459,86 @@ sf.write(out_path, wav, sr)
         .map_err(|e| format!("Qwen3-TTS a échoué : {e}"))
 }
 
+/// Cloner : la voix de l'enregistrement, le texte demandé.
+///
+/// Deux modes, et c'est la transcription qui départage. Avec elle, le moteur
+/// travaille en apprentissage-dans-le-contexte : il entend *comment* la phrase
+/// de référence est dite, et reproduit cette diction. Sans elle,
+/// `x_vector_only_mode` ne garde que l'empreinte du timbre — la voix ressemble,
+/// mais le débit est plat. Mieux vaut le mode dégradé qu'un refus : une
+/// référence sans transcription reste utilisable.
+async fn run_qwen3_clone(
+    python: &str,
+    repo_dir: &Path,
+    text: &str,
+    out_file: &Path,
+    speed: f32,
+    language: &str,
+    reference: &Reference,
+) -> Result<(), String> {
+    if !reference.audio.is_file() {
+        return Err(format!(
+            "L'enregistrement de référence est introuvable : {}",
+            reference.audio.display()
+        ));
+    }
+    let empreinte_seule = reference.text.trim().is_empty();
+
+    let script = format!(
+        r#"
+import sys
+repo_dir = {repo}
+out_path = {out}
+ref_audio = {ref_audio}
+ref_text = {ref_text}
+lang  = {lang}
+speed = {speed}
+x_vector_only = {xvec}
+
+text = sys.stdin.read()
+
+try:
+    from qwen_tts import Qwen3TTSModel
+except ImportError:
+    print("Le paquet `qwen-tts` n'est pas installe dans ce Python.", file=sys.stderr)
+    sys.exit(1)
+
+import torch
+device = "cuda" if torch.cuda.is_available() else "cpu"
+dtype  = torch.float16 if device == "cuda" else torch.float32
+
+model = Qwen3TTSModel.from_pretrained(repo_dir, dtype=dtype, device_map=device)
+wavs, sr = model.generate_voice_clone(
+    text=text,
+    language=lang,
+    ref_audio=ref_audio,
+    ref_text=None if x_vector_only else ref_text,
+    x_vector_only_mode=x_vector_only,
+    temperature=max(0.05, 0.7 + (1.0 - speed) * 0.1),
+)
+
+wav = wavs[0] if isinstance(wavs, list) else wavs
+if hasattr(wav, "detach"):
+    wav = wav.detach().cpu().numpy()
+elif hasattr(wav, "numpy"):
+    wav = wav.numpy()
+
+import soundfile as sf
+sf.write(out_path, wav, sr)
+"#,
+        repo = json_str(&repo_dir.to_string_lossy()),
+        out = json_str(&out_file.to_string_lossy()),
+        ref_audio = json_str(&reference.audio.to_string_lossy()),
+        ref_text = json_str(reference.text.trim()),
+        lang = json_str(language),
+        xvec = if empreinte_seule { "True" } else { "False" },
+    );
+
+    run_python(python, &script, text)
+        .await
+        .map_err(|e| format!("Le clonage Qwen3-TTS a échoué : {e}"))
+}
+
 // ── Synthèse ────────────────────────────────────────────────────────────────
 
 /// Rendre `text` en WAV et renvoyer son chemin.
@@ -453,6 +568,31 @@ pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
         .map_err(|e| format!("Impossible de créer {} : {e}", out_dir.display()))?;
     let out_file = out_dir.join(format!("tts_{}.wav", unix_millis()));
 
+    // La référence vient d'un préréglage, ou directement de la requête. Le
+    // préréglage l'emporte : c'est lui qui porte aussi la transcription et les
+    // réglages, donc la version complète.
+    let reference = match req
+        .preset
+        .as_deref()
+        .map(str::trim)
+        .filter(|p| !p.is_empty())
+    {
+        Some(id) => {
+            let p = presets::load_all()
+                .into_iter()
+                .find(|p| p.id == id)
+                .ok_or_else(|| format!("Préréglage vocal introuvable : {id}"))?;
+            Some(Reference {
+                audio: PathBuf::from(&p.reference_audio),
+                text: p.reference_text.clone(),
+            })
+        }
+        None => req.reference_audio.clone().map(|audio| Reference {
+            audio,
+            text: req.reference_text.clone().unwrap_or_default(),
+        }),
+    };
+
     let speed = req.speed.clamp(0.5, 2.0);
     let language = req
         .language
@@ -464,10 +604,30 @@ pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
 
     let voice = match resolve_engine(&model)? {
         Engine::Kokoro => {
+            // Kokoro parle avec ses propres voix livrées : il n'a rien pour
+            // recevoir une référence. L'ignorer en silence rendrait une voix
+            // qui n'est pas celle demandée, sans dire pourquoi.
+            if reference.is_some() {
+                return Err(
+                    "Kokoro ne sait pas cloner une voix : il parle avec les voix \
+                            livrées dans son dépôt. Pour cloner, prenez un modèle \
+                            Qwen3-TTS."
+                        .into(),
+                );
+            }
             Some(run_kokoro(&python, &repo_dir, &req.text, &out_file, speed, &language).await?)
         }
         Engine::Qwen3 => {
-            run_qwen3(&python, &repo_dir, &req.text, &out_file, speed, &language).await?;
+            run_qwen3(
+                &python,
+                &repo_dir,
+                &req.text,
+                &out_file,
+                speed,
+                &language,
+                reference.as_ref(),
+            )
+            .await?;
             None
         }
     };
@@ -714,6 +874,53 @@ mod tests {
         assert!(has_own_voice("hexgrad__Kokoro-82M"));
     }
 
+    /// La variante « Base » ne sait que cloner. Le refus doit porter sur ce qui
+    /// manque — la reference — et non sur le modele, et il doit dire quoi faire.
+    #[test]
+    fn la_variante_base_sans_reference_dit_quoi_faire() {
+        let err = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(run_qwen3(
+                "python",
+                Path::new("/modeles/Qwen__Qwen3-TTS-Base"),
+                "bonjour",
+                Path::new("/tmp/x.wav"),
+                1.0,
+                "fr",
+                None,
+            ))
+            .expect_err("un Base sans reference doit etre refuse");
+        assert!(
+            err.contains("prereglage") || err.contains("préréglage"),
+            "{err}"
+        );
+        assert!(err.contains("CustomVoice"), "{err}");
+    }
+
+    /// Une reference qui n'existe pas se dit avant de lancer Python : la trace
+    /// d'execution d'un fichier absent est illisible.
+    #[test]
+    fn une_reference_absente_est_signalee_avant_python() {
+        let manquant = std::env::temp_dir().join("reference-qui-nexiste-pas.wav");
+        let _ = std::fs::remove_file(&manquant);
+        let err = tokio::runtime::Runtime::new()
+            .unwrap()
+            .block_on(run_qwen3_clone(
+                "python",
+                Path::new("/modeles/Qwen__Qwen3-TTS-Base"),
+                "bonjour",
+                Path::new("/tmp/x.wav"),
+                1.0,
+                "fr",
+                &Reference {
+                    audio: manquant.clone(),
+                    text: String::new(),
+                },
+            ))
+            .expect_err("une reference absente doit etre refusee");
+        assert!(err.contains("introuvable"), "{err}");
+    }
+
     #[test]
     fn le_moteur_se_deduit_du_nom_du_depot() {
         assert!(matches!(
@@ -742,6 +949,9 @@ mod tests {
             speed: 1.0,
             language: None,
             output_dir: None,
+            preset: None,
+            reference_audio: None,
+            reference_text: None,
         };
         let err = tokio::runtime::Runtime::new()
             .unwrap()
@@ -771,6 +981,9 @@ mod tests {
             speed: 1.0,
             language: None,
             output_dir: Some(sortie.clone()),
+            preset: None,
+            reference_audio: None,
+            reference_text: None,
         };
 
         let res = tokio::runtime::Runtime::new()

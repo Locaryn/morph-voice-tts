@@ -1,6 +1,6 @@
 [package]
 name = "locaryn-plugin-voice-tts"
-version = "2.1.0"
+version = "2.2.0-beta.2"
 edition = "2021"
 description = "Official Locaryn Extension: Text-to-Speech (TTS) & Voice Cloning (Kokoro, Qwen3-TTS, Piper)"
 license = "Apache-2.0"
@@ -17,6 +17,7 @@ anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }
 walkdir = "2"
 
 [workspace]

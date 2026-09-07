@@ -2,8 +2,8 @@
   "$schema": "https://locaryn.dev/schema/morph.json/v0.1",
   "apiVersion": "0.1",
   "name": "morph-voice-tts",
-  "version": "2.2.0-beta.1",
-  "description": "Synthèse vocale locale : Kokoro (54 voix, immédiat) et Qwen3-TTS. La langue se devine du texte, la voix suit. Rien ne quitte la machine.",
+  "version": "2.2.0-beta.2",
+  "description": "Synthèse vocale locale : Kokoro (54 voix, immédiat) et Qwen3-TTS. La langue se devine du texte, la voix suit. Clonage vocal par préréglage — un enregistrement, sa transcription, et la voix se rejoue. Rien ne quitte la machine.",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
   "homepage": "https://github.com/Locaryn/morph-voice-tts",
@@ -75,6 +75,14 @@
   "beta": true,
   "stability": "untested",
   "versions": [
+    {
+      "version": "2.2.0-beta.2",
+      "is_beta": true,
+      "summary": "Clonage vocal : prereglages (enregistrement + transcription + reglages) rapatries depuis l'application, et chemin generate_voice_clone de Qwen3-TTS. La plomberie est verifiee de bout en bout par le serveur MCP ; l'appel Python de clonage n'a pas encore tourne contre de vrais poids.",
+      "tag": "v2.2.0-beta.2",
+      "released_at": "2026-09-07",
+      "install_source": "Locaryn/morph-voice-tts#v2.2.0-beta.2"
+    },
     {
       "version": "2.2.0-beta.1",
       "is_beta": true,

@@ -1,4 +1,8 @@
 //! Stdio MCP server shipped by morph-voice-tts.
+use locaryn_plugin_voice_tts::presets::{
+    delete_voice_preset, list_voice_presets, save_voice_preset, voice_preset_support,
+    SavePresetArgs,
+};
 use locaryn_plugin_voice_tts::{
     has_own_voice, kokoro_voices_in_repo, list_usable_voices, list_voices, repo_path,
     synthesize_speech, TtsRequest,
@@ -89,9 +93,66 @@ fn tools_list() -> Value {
                         "language": {
                             "type": "string",
                             "description": "Code ISO de la langue (fr, en, ja…). Omis : deviné d'après le texte."
+                        },
+                        "preset": {
+                            "type": "string",
+                            "description": "Identifiant d'un préréglage vocal, rendu par `list_voice_presets`. Il apporte l'enregistrement de référence et sa transcription : c'est la voie normale du clonage. Exige un modèle Qwen3-TTS."
+                        },
+                        "reference_audio": {
+                            "type": "string",
+                            "description": "Chemin d'un enregistrement de référence, pour un clonage unique sans préréglage."
+                        },
+                        "reference_text": {
+                            "type": "string",
+                            "description": "Ce que dit l'enregistrement. Sans elle, seul le timbre est repris et la diction reste plate."
                         }
                     },
                     "required": ["text"]
+                }
+            },
+            {
+                "name": "list_voice_presets",
+                "description": "Les préréglages vocaux enregistrés : un échantillon de voix, sa \
+                                transcription et des réglages de diction. Leur identifiant se \
+                                passe à `synthesize_speech` pour cloner cette voix.",
+                "inputSchema": { "type": "object", "properties": {} }
+            },
+            {
+                "name": "save_voice_preset",
+                "description": "Enregistre un préréglage vocal. L'audio de référence est copié \
+                                dans le préréglage : il survit au rangement du dossier d'origine. \
+                                Sans `id`, un nouveau préréglage est créé.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "id": { "type": "string", "description": "Présent pour modifier un préréglage existant ; absent pour en créer un." },
+                        "name": { "type": "string", "description": "Nom lisible du préréglage" },
+                        "note": { "type": "string", "description": "Remarque libre" },
+                        "reference_audio": { "type": "string", "description": "Chemin de l'enregistrement à copier. Requis à la création." },
+                        "reference_text": { "type": "string", "description": "Transcription de l'enregistrement — c'est elle qui donne la diction." },
+                        "language": { "type": "string", "description": "Code ISO de la langue de l'enregistrement" },
+                        "engine": { "type": "string", "description": "Moteur visé, pour savoir quels réglages seront honorés" }
+                    },
+                    "required": ["name"]
+                }
+            },
+            {
+                "name": "delete_voice_preset",
+                "description": "Supprime un préréglage vocal et son enregistrement copié.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "id": { "type": "string" } },
+                    "required": ["id"]
+                }
+            },
+            {
+                "name": "voice_preset_support",
+                "description": "Ce qu'un moteur donné honorera réellement d'un préréglage — plutôt \
+                                que d'en ignorer la moitié en silence.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": { "model": { "type": "string" } },
+                    "required": ["model"]
                 }
             }
         ]
@@ -127,6 +188,27 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
                 .map_err(|e| format!("Paramètres TTS invalides: {e}"))?;
             let res = synthesize_speech(req).await?;
             Ok(json!(res))
+        }
+        "list_voice_presets" => Ok(json!({ "presets": list_voice_presets()? })),
+        "save_voice_preset" => {
+            let args: SavePresetArgs = serde_json::from_value(args)
+                .map_err(|e| format!("Paramètres de préréglage invalides : {e}"))?;
+            Ok(json!(save_voice_preset(args)?))
+        }
+        "delete_voice_preset" => {
+            let id = args
+                .get("id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "L'identifiant du préréglage est requis.".to_string())?;
+            delete_voice_preset(id.to_string())?;
+            Ok(json!({ "deleted": id }))
+        }
+        "voice_preset_support" => {
+            let model = args
+                .get("model")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "Le nom du modèle est requis.".to_string())?;
+            Ok(json!(voice_preset_support(model.to_string())?))
         }
         _ => Err(format!("Outil TTS inconnu : {name}")),
     }

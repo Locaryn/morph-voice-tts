@@ -2,3 +2,8 @@
 /bin
 /out
 /bundle
+
+# Un lancement hors application ecrit ici. Les echantillons de voix sont des
+# donnees personnelles : ils ne doivent jamais partir dans le depot.
+voice_presets/
+output/
