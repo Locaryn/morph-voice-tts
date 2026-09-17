@@ -2,7 +2,7 @@
   "$schema": "https://locaryn.dev/schema/morph.json/v0.1",
   "apiVersion": "0.1",
   "name": "morph-voice-tts",
-  "version": "2.2.0-beta.2",
+  "version": "2.3.0",
   "description": "Synthèse vocale locale : Kokoro (54 voix, immédiat) et Qwen3-TTS. La langue se devine du texte, la voix suit. Clonage vocal par préréglage — un enregistrement, sa transcription, et la voix se rejoue. Rien ne quitte la machine.",
   "author": "Locaryn Team",
   "license": "Apache-2.0",
@@ -63,18 +63,19 @@
         "tag": "locaryn-voice-tts-panel",
         "hint": "Lecture audio et clonage de voix"
       }
-    ],
-    "nav_items": [
-      {
-        "id": "studio",
-        "label": "Studio de génération",
-        "icon": "image"
-      }
     ]
   },
   "beta": true,
   "stability": "untested",
   "versions": [
+    {
+      "version": "2.3.0",
+      "is_beta": false,
+      "summary": "Le panneau Studio charge desormais les modeles de voix reellement installes (au lieu de trois profils factices), joue le WAV produit et affiche une erreur explicite en cas d'echec plutot qu'un silence total.",
+      "tag": "v2.3.0",
+      "released_at": "2026-09-17",
+      "install_source": "Locaryn/morph-voice-tts#v2.3.0"
+    },
     {
       "version": "2.2.0-beta.2",
       "is_beta": true,
