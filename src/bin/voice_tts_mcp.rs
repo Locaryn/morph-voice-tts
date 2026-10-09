@@ -184,10 +184,20 @@ async fn call_tool(name: &str, args: Value) -> Result<Value, String> {
             }))
         }
         "synthesize_speech" => {
+            let a_blanc = args.get("__locaryn_preflight").and_then(Value::as_bool) == Some(true);
             let req: TtsRequest = serde_json::from_value(args)
                 .map_err(|e| format!("Paramètres TTS invalides: {e}"))?;
+            if a_blanc {
+                return Ok(locaryn_plugin_voice_tts::preflight_speech(&req));
+            }
             let res = synthesize_speech(req).await?;
-            Ok(json!(res))
+            let mut valeur = json!(res);
+            // La note vocale s'affiche dans le chat par l'enveloppe générique.
+            valeur["artifacts"] = json!([{
+                "kind": "audio_wav",
+                "path": res.audio_path.to_string_lossy()
+            }]);
+            Ok(valeur)
         }
         "list_voice_presets" => Ok(json!({ "presets": list_voice_presets()? })),
         "save_voice_preset" => {

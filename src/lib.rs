@@ -542,14 +542,21 @@ sf.write(out_path, wav, sr)
 // ── Synthèse ────────────────────────────────────────────────────────────────
 
 /// Rendre `text` en WAV et renvoyer son chemin.
-pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
+/// Ce que la synthèse utilisera, vérifié sans rien lancer.
+struct Preparee {
+    python: String,
+    model: String,
+    repo_dir: PathBuf,
+    engine: Engine,
+    reference: Option<Reference>,
+}
+
+fn preparer(req: &TtsRequest) -> Result<Preparee, String> {
     if req.text.trim().is_empty() {
         return Err("Texte vide : rien à dire.".into());
     }
     let python = find_python()
         .ok_or_else(|| "Python introuvable. Installez Python 3.10 ou plus récent.".to_string())?;
-
-    // Sans choix explicite, la première voix utilisable installée.
     let model = if req.voice.trim().is_empty() {
         list_usable_voices().into_iter().next().ok_or_else(|| {
             "Aucun modèle de synthèse installé. Ajoutez par exemple hexgrad/Kokoro-82M \
@@ -559,18 +566,13 @@ pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
     } else {
         req.voice.clone()
     };
-
-    let repo_dir = repo_path(&model)
-        .ok_or_else(|| format!("Modèle introuvable dans la bibliothèque : {model}"))?;
-
-    let out_dir = req.output_dir.clone().unwrap_or_else(default_output_dir);
-    std::fs::create_dir_all(&out_dir)
-        .map_err(|e| format!("Impossible de créer {} : {e}", out_dir.display()))?;
-    let out_file = out_dir.join(format!("tts_{}.wav", unix_millis()));
-
-    // La référence vient d'un préréglage, ou directement de la requête. Le
-    // préréglage l'emporte : c'est lui qui porte aussi la transcription et les
-    // réglages, donc la version complète.
+    let repo_dir = repo_path(&model).ok_or_else(|| {
+        format!(
+            "Modèle introuvable dans la bibliothèque : {model} (installés : {})",
+            list_usable_voices().join(", ")
+        )
+    })?;
+    let engine = resolve_engine(&model)?;
     let reference = match req
         .preset
         .as_deref()
@@ -592,6 +594,77 @@ pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
             text: req.reference_text.clone().unwrap_or_default(),
         }),
     };
+    if let Some(r) = &reference {
+        if engine == Engine::Kokoro {
+            return Err(
+                "Kokoro ne sait pas cloner une voix : il parle avec les voix \
+                        livrées dans son dépôt. Pour cloner, prenez un modèle Qwen3-TTS."
+                    .into(),
+            );
+        }
+        if !r.audio.is_file() {
+            return Err(format!(
+                "Enregistrement de référence introuvable : {}",
+                r.audio.display()
+            ));
+        }
+    }
+    Ok(Preparee {
+        python,
+        model,
+        repo_dir,
+        engine,
+        reference,
+    })
+}
+
+/// Le poids des fichiers de poids d'un dépôt, en Gio.
+fn poids_gb(repo: &Path) -> f32 {
+    walkdir_recursive(repo, 4)
+        .into_iter()
+        .filter(|p| {
+            p.extension()
+                .is_some_and(|e| e == "safetensors" || e == "bin" || e == "pth" || e == "onnx")
+        })
+        .filter_map(|p| std::fs::metadata(p).ok())
+        .map(|m| m.len() as f32 / (1024.0 * 1024.0 * 1024.0))
+        .sum()
+}
+
+/// L'appel à blanc que l'hôte fait avant de libérer la carte graphique.
+pub fn preflight_speech(req: &TtsRequest) -> serde_json::Value {
+    match preparer(req) {
+        Ok(p) => {
+            // Qwen3-TTS tourne en float16 sur la carte : ses poids, plus le
+            // contexte CUDA. Kokoro est minuscule.
+            let vram_gb = match p.engine {
+                Engine::Kokoro => 0.8,
+                Engine::Qwen3 => poids_gb(&p.repo_dir) + 1.0,
+            };
+            serde_json::json!({
+                "ready": true,
+                "vram_gb": vram_gb,
+                "summary": format!("synthèse vocale avec {}", p.model),
+                "media": { "kind": "audio", "count": 1 }
+            })
+        }
+        Err(problem) => serde_json::json!({ "ready": false, "problem": problem }),
+    }
+}
+
+pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
+    let Preparee {
+        python,
+        model,
+        repo_dir,
+        engine,
+        reference,
+    } = preparer(&req)?;
+
+    let out_dir = req.output_dir.clone().unwrap_or_else(default_output_dir);
+    std::fs::create_dir_all(&out_dir)
+        .map_err(|e| format!("Impossible de créer {} : {e}", out_dir.display()))?;
+    let out_file = out_dir.join(format!("tts_{}.wav", unix_millis()));
 
     let speed = req.speed.clamp(0.5, 2.0);
     let language = req
@@ -602,19 +675,11 @@ pub async fn synthesize_speech(req: TtsRequest) -> Result<TtsResult, String> {
         .map(str::to_string)
         .unwrap_or_else(|| detect_language(&req.text).to_string());
 
-    let voice = match resolve_engine(&model)? {
+    // Le processus Python sort à la fin de la phrase : la carte est rendue.
+    let voice = match engine {
         Engine::Kokoro => {
-            // Kokoro parle avec ses propres voix livrées : il n'a rien pour
-            // recevoir une référence. L'ignorer en silence rendrait une voix
-            // qui n'est pas celle demandée, sans dire pourquoi.
-            if reference.is_some() {
-                return Err(
-                    "Kokoro ne sait pas cloner une voix : il parle avec les voix \
-                            livrées dans son dépôt. Pour cloner, prenez un modèle \
-                            Qwen3-TTS."
-                        .into(),
-                );
-            }
+            // Kokoro parle avec ses propres voix livrées : `preparer` a déjà
+            // refusé une référence, qu'il ignorerait en silence.
             Some(run_kokoro(&python, &repo_dir, &req.text, &out_file, speed, &language).await?)
         }
         Engine::Qwen3 => {

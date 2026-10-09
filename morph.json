@@ -40,6 +40,11 @@
     "voice-tts",
     "voice-cloning"
   ],
+  "gpu": {
+    "tools": {
+      "synthesize_speech": { "produces": "audio" }
+    }
+  },
   "ui_contributions": {
     "slots": [
       {
