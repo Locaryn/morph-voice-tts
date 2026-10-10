@@ -33,13 +33,13 @@
       ],
       "variants": [
         {
-          "size": "ONNX · 82M",
+          "size": "Dépôt complet · 82M",
           "params": 0.08,
-          "storageGb": 0.3,
+          "storageGb": 0.35,
           "quants": [
-            "fp16"
+            "fp32"
           ],
-          "tag": "https://huggingface.co/hexgrad/Kokoro-82M/resolve/main/kokoro-v0_19.onnx",
+          "tag": "https://huggingface.co/hexgrad/Kokoro-82M",
           "downloads": []
         }
       ]
