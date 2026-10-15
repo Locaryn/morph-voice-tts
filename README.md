@@ -1,3 +1,3 @@
 # morph-voice-tts
 
-Extension de synthèse vocale pour Locaryn.
+Morph de synthèse vocale pour Locaryn.
